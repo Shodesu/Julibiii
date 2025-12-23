@@ -356,7 +356,7 @@ button, #bag-icon {
             <div id="zoom-layer">
                 <div id="board">
                     <div class="world-title">
-                        <h1>Cinnamonroll's Starry Path</h1>
+                        <h1>Your Starry Path</h1>
                         <div class="progress-pill" id="prog-pill">Notes found: 0 / 10</div>
                     </div>
                     <div id="player"></div>
@@ -408,7 +408,7 @@ button, #bag-icon {
 
     <div id="inventory-overlay" onclick="if(event.target==this) toggleInventory()">
         <div class="inventory-card">
-            <h2 style="color: var(--deep-blue); margin-top: 0;">Cinnamoroll's Keepsakes ☁️</h2>
+            <h2 style="color: var(--deep-blue); margin-top: 0;">Your Keepsakes ☁️</h2>
             <div id="inventory-list">
                 <p style="color: #999; font-style: italic;">The bag is empty... explore the path to find notes!</p>
             </div>
@@ -590,7 +590,7 @@ async function roll() {
     if (bgm && bgm.paused) { bgm.volume = 0.2; bgm.play(); }
 
     const steps = Math.floor(Math.random() * 6) + 1;
-    addLog(`Rolled a ${steps}! Cinnamoroll floats forward.`);
+    addLog(`Rolled a ${steps}! You took steps forward.`);
     document.getElementById('status').innerText = `Rolling... ${steps} spaces!`;
 
     for (let i = 0; i < steps; i++) {
@@ -627,8 +627,8 @@ async function roll() {
     }
 
     if (traps.includes(currentPos)) {
-        addLog("Oh no! A gust of wind!");
-        showPopup("A Quiet Storm", "The wind is strong... flying back to start.");
+        addLog("Ooopps, A Reset Tile!");
+        showPopup("A Quiet Storm", "The wind is strong... going back to start.");
         await waitClose();
         currentPos = 0;
         updateView();
