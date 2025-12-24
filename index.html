@@ -2,165 +2,721 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sakura Cat Platformer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cinnamoroll's Starry Path</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
+        :root {
+            --cinna-blue: #b9e2f5;
+            --cinna-pink: #fbcce3;
+            --white: #ffffff;
+            --deep-blue: #5a92af;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #eef9ff;
+            font-family: 'Segoe UI', sans-serif;
+            touch-action: none; /* Prevents mobile scrolling while panning */
+        }
+
+        #viewport {
+            width: 100vw; height: 100vh;
+            perspective: 1500px;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            background-color: #fce7f3; /* Matching pink background */
-            overflow: hidden;
+            background: radial-gradient(circle, #ffffff 0%, #c9e9fb 100%);
+            cursor: grab;
+        }
+        #viewport:active { cursor: grabbing; }
+
+        #world-offset {
+            position: absolute;
+            transform-style: preserve-3d;
+            transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
-        /* The game screen */
-        canvas {
-            border: 5px solid #fb7185;
-            border-radius: 10px;
-            background-color: white;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        #zoom-layer {
+            transform-style: preserve-3d;
+            transition: transform 0.3s ease-out;
+            transform: scale(1);
         }
 
-        #overlay {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 85%;
-            max-width: 500px;
-            background: #fff5f7;
-            border: 4px solid #fb7185;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.3);
-            z-index: 100;
-            font-family: 'Georgia', serif;
-            color: #4b2c20;
+        #board {
+            display: grid;
+            grid-template-columns: repeat(10, 110px);
+            gap: 20px;
+            transform: rotateX(50deg) rotateZ(-5deg);
+            transform-style: preserve-3d;
+            padding: 50px;
+            padding-bottom: 500px; 
+        }
+
+        .world-title {
+            grid-column: span 10;
+            text-align: center;
+            transform: translateZ(50px);
+            margin-bottom: 40px;
+            pointer-events: none;
+        }
+
+        .world-title h1 {
+            font-size: 3.5rem; color: var(--deep-blue);
+            margin: 0; text-shadow: 4px 4px 0px white;
+        }
+
+        .progress-pill {
+            display: inline-block; background: white;
+            padding: 8px 20px; border-radius: 30px;
+            border: 4px solid var(--cinna-blue);
+            font-weight: bold; color: var(--deep-blue);
+            margin-top: 10px; box-shadow: 0 6px 0 var(--cinna-blue);
+        }
+
+        .tile {
+            width: 110px; height: 110px;
+            background: white; border: 4px solid var(--cinna-blue);
+            border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; color: var(--deep-blue);
+            box-shadow: 0 8px 0 var(--cinna-blue);
+            position: relative; transition: all 0.5s ease;
+        }
+
+        .tile.special { border-color: var(--cinna-pink); background: #fff5f9; box-shadow: 0 8px 0 #f8b9d5; }
+        .tile.special.deactivated { opacity: 0.5; filter: grayscale(1); box-shadow: 0 4px 0 #ccc; }
+        .tile.trap { border-color: #ffb3b3; background: #fff0f0; box-shadow: 0 8px 0 #ff9e9e; }
+
+        #player {
+            width: 300px; height: 300px;
+            background: url('Julii.png') no-repeat center/contain;
+            position: absolute; z-index: 5000;
+            transform: translateY(-60px) translateX(-60px) translateZ(80px) rotateX(-50deg) rotateZ(5deg);
+            transition: left 0.4s ease, top 0.4s ease;
+            pointer-events: none;
+            filter: drop-shadow(0 20px 10px rgba(0,0,0,0.1));
+        }
+
+        .zoom-controls {
+            position: fixed; right: 30px; top: 50%;
+            transform: translateY(-50%); z-index: 10001;
+            display: flex; flex-direction: column; align-items: center;
+            background: white; padding: 15px; border-radius: 40px;
+            border: 3px solid var(--cinna-blue); box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .zoom-controls span { font-weight: bold; color: var(--deep-blue); margin-bottom: 10px; }
+        
+        input[type=range] {
+            writing-mode: bt-lr; 
+            appearance: slider-vertical;
+            width: 8px; height: 150px;
+            cursor: pointer;
+        }
+
+        .ui {
+            position: fixed; bottom: 40px; left: 50%;
+            transform: translateX(-50%); z-index: 9999;
             text-align: center;
         }
 
-        #message-text {
-            max-height: 300px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            line-height: 1.6;
-            margin-bottom: 20px;
-            padding-right: 10px;
-            font-style: italic;
-            text-align: left;
-        }
-
-        /* Custom Scrollbar */
-        #message-text::-webkit-scrollbar { width: 6px; }
-        #message-text::-webkit-scrollbar-thumb { background: #fda4af; border-radius: 10px; }
-
         button {
-            background: #fb7185;
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
+            padding: 12px 35px; font-size: 20px; font-weight: bold;
+            background: white; color: var(--deep-blue);
+            border: 4px solid var(--cinna-blue); border-radius: 50px;
+            cursor: pointer; box-shadow: 0 6px 0 var(--cinna-blue);
+            transition: 0.2s; margin: 5px;
         }
-        button:hover { background: #e11d48; }
 
-        #main-menu {
-    position: absolute;
-    width: 800px;
-    height: 400px;
-    background: rgba(255, 245, 247, 0.9);
+        button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--cinna-blue); }
+
+            #overlay {
+            display: none; 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px); 
+            z-index: 10000;
+            justify-content: center; 
+            align-items: center;
+        }
+
+        .popup {
+            background: white; 
+            padding: 30px; 
+            border-radius: 35px;
+            width: 85%;
+            max-width: 450px; 
+            /* This limits the height so it doesn't go off-screen */
+            max-height: 70vh; 
+            text-align: center; 
+            border: 10px solid var(--cinna-blue);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 0 rgba(185, 226, 245, 0.3);
+        }
+
+        #p-title {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+        }
+
+        #p-text {
+            font-style: italic; 
+            line-height: 1.8; 
+            font-size: 1.1rem; 
+            color: #444;
+            /* This is the magic part for long messages */
+            overflow-y: auto; 
+            padding: 0 15px;
+            margin-bottom: 20px;
+            text-align: left; /* Better for long letters */
+            white-space: pre-wrap; /* Preserves your line breaks/spacing */
+            
+            /* Custom Cinnamoroll Scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: var(--cinna-blue) transparent;
+        }
+
+        /* Scrollbar for Chrome/Safari/Edge */
+        #p-text::-webkit-scrollbar { width: 6px; }
+        #p-text::-webkit-scrollbar-thumb { 
+            background: var(--cinna-blue); 
+            border-radius: 10px; 
+        }
+
+        #message-log {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        width: 250px;
+        max-height: 200px;
+        pointer-events: none;
+        z-index: 10002;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column-reverse;
+    }
+
+    .log-entry {
+        background: rgba(255, 255, 255, 0.9);
+        border-left: 5px solid var(--cinna-blue);
+        margin-bottom: 5px;
+        padding: 8px 12px;
+        border-radius: 0 10px 10px 0;
+        font-size: 14px;
+        color: var(--deep-blue);
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(-100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    #bag-icon {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 70px;
+    height: 70px;
+    background: white;
+    border: 4px solid var(--cinna-blue);
+    border-radius: 50%;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10001;
+    box-shadow: 0 6px 0 var(--cinna-blue);
+    transition: transform 0.2s;
+}
+
+#bag-icon:hover { transform: scale(1.1); }
+#bag-icon:active { transform: translateY(3px); }
+
+#bag-count {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: var(--cinna-pink);
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+}
+
+#inventory-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(185, 226, 245, 0.4);
+    backdrop-filter: blur(5px);
+    z-index: 10005;
     justify-content: center;
     align-items: center;
-    z-index: 200;
-    border-radius: 10px;
-    border: 5px solid #fb7185;
 }
 
-#main-menu h1 {
-    font-family: 'Georgia', serif;
-    font-size: 48px;
-    color: #e11d48;
+.inventory-card {
+    background: white;
+    width: 80%;
+    max-width: 400px;
+    max-height: 70vh;
+    border-radius: 30px;
+    border: 8px solid var(--cinna-blue);
+    padding: 30px;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.inventory-item {
+    background: #f0f9ff;
+    border: 2px dashed var(--cinna-blue);
+    padding: 15px;
     margin-bottom: 10px;
-    text-shadow: 2px 2px #fbcfe8;
+    border-radius: 15px;
+    text-align: left;
+    animation: fadeIn 0.4s ease;
 }
 
-#main-menu p {
-    color: #4b2c20;
-    margin-bottom: 30px;
-    font-weight: bold;
+.inventory-item b { color: var(--deep-blue); display: block; margin-bottom: 5px; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.cloud-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; /* Allows you to click through them */
+    z-index: 1;
+    overflow: hidden;
+}
+
+.cloud {
+    position: absolute;
+    font-size: 100px;
+    opacity: 0.3;
+    filter: blur(2px);
+    animation: moveClouds var(--d) linear infinite;
+    transform: scale(var(--s));
+}
+
+@keyframes moveClouds {
+    from { transform: translateX(-10vw) scale(var(--s)); }
+    to { transform: translateX(110vw) scale(var(--s)); }
+}
+
+/* This makes the board 5 columns on phones and 10 on computers */
+#board {
+    display: grid;
+    grid-template-columns: repeat(5, 80px); 
+    gap: 15px;
+}
+
+@media (min-width: 768px) {
+    #board { grid-template-columns: repeat(10, 110px); gap: 20px; }
+}
+
+/* Prevents the blue "highlight box" when tapping buttons on mobile */
+button, #bag-icon {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Character size adjustment for smaller screens */
+#player {
+    width: 150px; 
+    height: 150px;
+    transform: translateY(-60px) translateX(-50px) translateZ(80px) rotateX(-50deg) rotateZ(5deg);
 }
     </style>
 </head>
 <body>
-    <div id="main-menu">
-        <h1>A Little Journey</h1>
-        <p>Arrows to Move | Space/Up to Jump/Double jump | Shift to Run</p>
-        <button onclick="startGame()">Start Journey</button>
+<div class="cloud-bg">
+    <div class="cloud" style="top: 10%; left: -10%; --d: 25s; --s: 1.2;">☁️</div>
+    <div class="cloud" style="top: 30%; left: -15%; --d: 18s; --s: 0.8;">☁️</div>
+    <div class="cloud" style="top: 60%; left: -20%; --d: 30s; --s: 1.5;">☁️</div>
+    <div class="cloud" style="top: 80%; left: -12%; --d: 22s; --s: 1.0;">☁️</div>
+</div>
+    <div id="viewport">
+        <div id="world-offset">
+            <div id="zoom-layer">
+                <div id="board">
+                    <div class="world-title">
+                        <h1>Your Starry Path</h1>
+                        <div class="progress-pill" id="prog-pill">Notes found: 0 / 10</div>
+                    </div>
+                    <div id="player"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div class="zoom-controls">
+        <span>🔍</span>
+        <input type="range" id="zoomRange" min="0.3" max="1.5" step="0.1" value="1" oninput="applyZoom()">
+    </div>
+
+    <div class="ui">
+        <button id="rollBtn" onclick="roll()">Draw Your Destiny ✨</button>
+        <button id="recenterBtn" onclick="resetPan()" style="display:none; font-size: 14px; padding: 8px 20px;">Recenter ☁️</button>
+        <p id="status" style="margin-top:12px; font-weight:bold; color:var(--deep-blue); background:rgba(255,255,255,0.8); padding:5px 15px; border-radius:20px;">Drag to pan, Scroll to zoom!</p>
+    </div>
 
     <div id="overlay">
-        <div id="message-text"></div>
-        <button onclick="resumeGame()">Close Letter</button>
-    </div>
-    
-    <div id="gift-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%); z-index:2000; text-align:center; color:#fce7f3; font-family:'Georgia', serif; backdrop-filter: blur(8px);">
-    
-    <div style="margin-top: 80px; animation: fadeIn 2s ease-in;">
-        <h2 style="font-size: 2.5rem; color: #fda4af; text-shadow: 0 0 20px rgba(251, 113, 133, 0.5); letter-spacing: 2px;">A Final Offering</h2>
-        <p style="font-style: italic; opacity: 0.8;">The journey is complete. Choose a gift to carry with you into the dawn.</p>
-    </div>
-
-    <div style="display:flex; justify-content:center; gap:60px; margin-top:50px;">
-        <div onclick="openGift('wisdom')" class="gift-box" style="cursor:pointer; transition: transform 0.3s ease;">
-            <div style="font-size:70px; filter: drop-shadow(0 0 15px #fcd34d);">🎁</div>
-            <p style="margin-top:10px; font-weight:bold; color:#fcd34d;">Gift of Wisdom</p>
-        </div>
+    <div class="popup">
+        <h2 id="p-title" style="color:var(--deep-blue)"></h2>
         
-        <div onclick="openGift('memory')" class="gift-box" style="cursor:pointer; transition: transform 0.3s ease;">
-            <div style="font-size:70px; filter: drop-shadow(0 0 15px #fb7185);">🎁</div>
-            <p style="margin-top:10px; font-weight:bold; color:#fb7185;">Gift of Memory</p>
-        </div>
-    </div>
-
-    <div id="gift-content" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background: rgba(15, 23, 42, 0.98); z-index:2100; padding:50px; box-sizing:border-box; animation: fadeIn 0.8s ease-out;">
-    
-    <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(253, 164, 175, 0.3); padding-bottom: 15px; margin-bottom: 30px;">
-        <button onclick="closeGift()" style="background: none; border: 1px solid #fda4af; color: #fda4af; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-family: 'Georgia'; transition: 0.3s;" onmouseover="this.style.background='rgba(253, 164, 175, 0.1)'" onmouseout="this.style.background='none'">
-            ← Back to Gifts
-        </button>
-        <span id="gift-title-header" style="color: #fda4af; font-size: 1.2rem; letter-spacing: 1px;"></span>
-    </div>
-
-    <div id="gift-scroll-area" style="max-width: 800px; margin: 0 auto; height: 70vh; overflow-y: auto; line-height: 2; font-size: 1.2rem; color: #fdf2f8; padding-right: 20px;">
-        <p id="gift-text" style="white-space: pre-line;"></p>
-    </div>
-
-    <div style="text-align: center; margin-top: 30px;">
-        <p style="font-size: 0.9rem; opacity: 0.5; font-style: italic;">Your journey lives on in the falling petals.</p>
-        <button onclick="location.reload()" style="background:none; border:none; color:#fda4af; text-decoration:underline; cursor:pointer; font-size: 0.8rem; margin-top:10px;">Restart Game</button>
+        <div id="p-text"></div>
+        
+        <button onclick="closePopup()" style="margin-top: auto; width: 100%;">Keep Flying ☁️</button>
     </div>
 </div>
 
-<style>
-    /* Aesthetic scrollbar for the long text */
-    #gift-scroll-area::-webkit-scrollbar { width: 6px; }
-    #gift-scroll-area::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
-    #gift-scroll-area::-webkit-scrollbar-thumb { background: #fda4af; border-radius: 10px; }
+    </div>
+    <audio id="bgm" loop>
+    <source src="cute.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="jumpSound">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2092/2092-preview.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="collectSound">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" type="audio/mpeg">
+    </audio>
 
-    .gift-box:hover { transform: scale(1.1) translateY(-10px); }
+    <div id="message-log">
+        <div id="log-container"></div>
+    </div>
+
+    <div id="bag-icon" onclick="toggleInventory()">
+    <span style="font-size: 40px;">👜</span>
+    <div id="bag-count">0</div>
+</div>
+
+    <div id="inventory-overlay" onclick="if(event.target==this) toggleInventory()">
+        <div class="inventory-card">
+            <h2 style="color: var(--deep-blue); margin-top: 0;">Your Keepsakes ☁️</h2>
+            <div id="inventory-list">
+                <p style="color: #999; font-style: italic;">The bag is empty... explore the path to find notes!</p>
+            </div>
+            <button onclick="toggleInventory()" style="margin-top: 20px; font-size: 16px;">Close Bag</button>
+        </div>
+    </div>
+    <script>
+       const boardSize = 50;
+let currentPos = 0;
+let isMoving = false;
+let currentZoom = 1;
+
+// Panning Variables
+let panX = 0, panY = 0;
+let isPanning = false;
+let startX, startY;
+
+const visitedSpecials = new Set();
+const specials = {
+    5: { 
+        t: "A Note on Strength", 
+        m: `You carry the world with such a gentle grace,
+A quiet power no storm could ever erase.
+Through every shadow, you rise and you bloom,
+Your inner glow fills every empty room.
+
+You are stronger than the tides of the sea,
+And the brightest light I ever did see.` 
+    }, 
+    12: { t: "Hewwwoo", m: "Julibiiiiiiiiiii, u know i often say this....well because its true...YOU ARE THE CUTEST AND THE MOST BEAUTIFUL WHEN YOU SMILE....So smile much often...really I do mean it." },
+    18: { 
+        t: "To the Most Beautiful", 
+        m: `It’s not just the sparkle found in your eyes,
+But the way your soul mirrors the morning skies.
+A beauty so deep, it reaches the bone,
+A radiant warmth I’m lucky to have known.
+
+The way that you carry your heart on your sleeve,
+Gives everyone 'round you a reason to believe.
+You’re a gallery of kindness, a work of pure art,
+With a light that can heal even the heaviest heart.
+
+You don’t need a crown to be seen as a queen,
+The loveliest soul that this world’s ever seen.
+In a crowd full of gray, you are vibrant and gold,
+A story of wonder that’s yet to be told.
+
+I watch as you walk with such courage and light,
+A beacon of hope when the day turns to night.
+The softest of spirits, yet sturdy and tall,
+You’re the one who stands up and inspires us all.
+
+So look in the mirror and see what I see,
+The most beautiful girl that there ever could be.
+My guiding horizon, my stars and my sun,
+You are, and you will be, the only one.` 
+    }, 
+    25: { t: "Halfway", m: "I know that you are joking when you say you are worthless..but even if it's just a joke...dont say that, because in my eyes...you are always the most capable woman I have ever met." },
+    30: { t: "My MOON", m: "Thank you, Because you made me want to live my life again...dont bother...looking for a gift for me...because your presence alone...is the greatest thing I received..in my entire life ^^." }, 
+    35: { 
+        t: "My Constant Sun", 
+        m: `When the clouds gather and the day feels cold,
+I think of the stories your kind heart has told.
+You are the lighthouse in my darkest night,
+The one who keeps everything feeling so right.
+
+My anchor, my miracle, my soft place to stay,
+You are the light that guides my whole way.` 
+    },
+    42: { t: "Phrase", m: "Merrryy Christmas! Enjoying the game so far?" }, 
+    45: { 
+        t: "My Miracle", 
+        m: `You are the breath in the lungs of my soul,
+The missing piece that has finally made me whole.
+I look at your journey, the paths you have trod,
+And I see a spirit that’s favored by God.
+
+You reach for the stars with a heart full of fire,
+There is no limit to what you inspire.
+Watching you grow is a gift and a dream,
+You’re the golden thread in life’s silver seam.
+
+Never let shadows diminish your glow,
+For you have a brilliance that the world needs to know.
+An aspiring heart that can never be bound,
+The rarest of treasures that I’ve ever found.
+
+Through the highs and the lows, you stay steady and true,
+There is no one who does it exactly like you.
+You’re the hope in the morning, the peace in the eve,
+The kind of true magic one has to believe.
+
+So let this note linger and stay in your heart,
+We’re bonded by light, even when we’re apart.
+You’re my miracle, my moon, my greatest prize,
+The light of the world is reflected in your eyes.` 
+    },
+    46: { t: "Phrase", m: "You are almost there!! You can doooo it!!." }, 
+    48: { t: "The True Gift", m: "FINAL: What can you say about the game?!...whahahahha you enjoyed it...I leveled things up...soo u know I could maybe....make you feel that you are valued...you are cherished...and you are loved...but hey this is not all...see that 50th tile?...Heh....My gift for you is more than just a game...i want to thank you for everything....that is why...this time Ill give you time, assurance and the feeling of ease...enjooy your vacation! you truly deserve it." },
+    49: { t: "THE END", m: "https://drive.google.com/drive/folders/1D2LKzTd-h1GCWpajv9ICsn92mirvnfGx?usp=sharing" }
     
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-</style>
-    <script src="game.js"></script>
+};
+const traps = [8, 10, 14, 20, 26, 31, 36, 40, 44, 47];
+
+// --- INITIALIZE BOARD ---
+const boardEl = document.getElementById('board');
+for (let i = 0; i < boardSize; i++) {
+    const t = document.createElement('div');
+    t.className = 'tile'; t.id = 'tile-' + i; t.innerHTML = i + 1;
+    if (specials[i]) t.classList.add('special');
+    if (traps.includes(i)) { t.classList.add('trap'); t.innerHTML = "☁️"; }
+    boardEl.appendChild(t);
+}
+
+// --- LOGGING & INVENTORY ---
+function addLog(message) {
+    const container = document.getElementById('log-container');
+    if (!container) return;
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerText = `✨ ${message}`;
+    container.prepend(entry);
+    setTimeout(() => {
+        entry.style.opacity = '0';
+        setTimeout(() => entry.remove(), 500);
+    }, 5000);
+}
+
+function updateInventoryUI() {
+    const list = document.getElementById('inventory-list');
+    const count = document.getElementById('bag-count');
+    if (!count || !list) return;
+
+    count.innerText = visitedSpecials.size;
+    list.innerHTML = ''; 
+
+    visitedSpecials.forEach(pos => {
+        const item = specials[pos];
+        const div = document.createElement('div');
+        div.className = 'inventory-item';
+        div.innerHTML = `<b>✨ ${item.t}</b><p>"${item.m}"</p>`;
+        list.appendChild(div);
+    });
+}
+
+function toggleInventory() {
+    const inv = document.getElementById('inventory-overlay');
+    inv.style.display = (inv.style.display === 'flex') ? 'none' : 'flex';
+}
+
+// --- VIEWPORT CONTROL ---
+function updateView(instant = false) {
+    const player = document.getElementById('player');
+    const world = document.getElementById('world-offset');
+    const targetTile = document.getElementById('tile-' + currentPos);
+    if (!targetTile) return;
+
+    player.style.left = targetTile.offsetLeft + 5 + 'px';
+    player.style.top = targetTile.offsetTop + 5 + 'px';
+
+    world.style.transition = (instant || isPanning) ? 'none' : 'transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)';
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2.5; 
+    const targetX = -targetTile.offsetLeft - 55;
+    const targetY = -targetTile.offsetTop - 55;
+
+    world.style.transform = `translateX(${centerX + targetX + panX}px) translateY(${centerY + targetY + panY}px)`;
+}
+
+// --- THE CORE ROLL FUNCTION ---
+async function roll() {
+    if (isMoving) return;
+    isMoving = true;
+    document.getElementById('rollBtn').disabled = true;
+
+    // Start BGM on first roll
+    const bgm = document.getElementById('bgm');
+    if (bgm && bgm.paused) { bgm.volume = 0.2; bgm.play(); }
+
+    const steps = Math.floor(Math.random() * 6) + 1;
+    addLog(`Rolled a ${steps}! You took steps forward.`);
+    document.getElementById('status').innerText = `Rolling... ${steps} spaces!`;
+
+    for (let i = 0; i < steps; i++) {
+        if (currentPos < boardSize - 1) {
+            currentPos++;
+
+            
+            // Jump Sound
+            const jump = document.getElementById('jumpSound');
+            if(jump) { jump.currentTime = 0; jump.play(); }
+
+            updateView(); 
+            
+            if (specials[currentPos] && !visitedSpecials.has(currentPos)) {
+                // Collect Sound
+                const collect = document.getElementById('collectSound');
+                if(collect) collect.play();
+                
+                addLog(`Found a secret note!`);
+                await new Promise(r => setTimeout(r, 600));
+                
+                showPopup(specials[currentPos].t, specials[currentPos].m);
+                visitedSpecials.add(currentPos);
+                
+                // IMPORTANT: Update the bag with the new message
+                updateInventoryUI(); 
+                
+                document.getElementById('tile-' + currentPos).classList.add('deactivated');
+                document.getElementById('prog-pill').innerText = `Notes found: ${visitedSpecials.size} / 10`;
+                await waitClose();
+            }
+            await new Promise(r => setTimeout(r, 450));
+        }
+    }
+
+    if (traps.includes(currentPos)) {
+        addLog("Ooopps, A Reset Tile!");
+        showPopup("A Quiet Storm", "The wind is strong... going back to start.");
+        await waitClose();
+        currentPos = 0;
+        updateView();
+    }
+    
+    isMoving = false;
+    document.getElementById('rollBtn').disabled = false;
+    document.getElementById('status').innerText = "Ready to fly again! ✨";
+}
+
+// --- POPUPS & CONTROLS ---
+function showPopup(t, m) {
+    document.getElementById('p-title').innerText = t;
+    document.getElementById('p-text').innerText = m;
+    document.getElementById('overlay').style.display = 'flex';
+}
+
+function closePopup() { document.getElementById('overlay').style.display = 'none'; }
+
+function waitClose() { 
+    return new Promise(res => {
+        const check = setInterval(() => { 
+            if (document.getElementById('overlay').style.display === 'none') { 
+                clearInterval(check); res(); 
+            } 
+        }, 100);
+    });
+}
+
+// Panning & Zoom Events (Phone & Desktop Support)
+const viewport = document.getElementById('viewport');
+
+const handleStart = (e) => {
+    isPanning = true;
+    // This line detects if it's a finger touch or a mouse click
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    startX = clientX - panX;
+    startY = clientY - panY;
+    document.getElementById('world-offset').style.transition = 'none';
+};
+
+const handleMove = (e) => {
+    if (!isPanning) return;
+    // Stop the phone from trying to scroll the whole webpage
+    if (e.touches) e.preventDefault(); 
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    panX = clientX - startX;
+    panY = clientY - startY;
+    updateView(true);
+    
+    if (Math.abs(panX) > 50 || Math.abs(panY) > 50) {
+        document.getElementById('recenterBtn').style.display = 'inline-block';
+    }
+};
+
+const handleEnd = () => { 
+    isPanning = false; 
+    document.getElementById('world-offset').style.transition = 'transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)';
+};
+
+// Desktop Mouse Listeners
+viewport.addEventListener('mousedown', handleStart);
+window.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+
+// Phone Touch Listeners
+viewport.addEventListener('touchstart', handleStart, {passive: false});
+window.addEventListener('touchmove', handleMove, {passive: false});
+window.addEventListener('touchend', handleEnd);
+
+function resetPan() {
+    panX = 0; panY = 0;
+    document.getElementById('recenterBtn').style.display = 'none';
+    updateView();
+}
+
+function applyZoom() {
+    currentZoom = document.getElementById('zoomRange').value;
+    document.getElementById('zoom-layer').style.transform = `scale(${currentZoom})`;
+}
+
+window.onload = () => { setTimeout(() => updateView(true), 100); };
+window.onresize = () => updateView(true);
+    </script>
 </body>
 </html>
